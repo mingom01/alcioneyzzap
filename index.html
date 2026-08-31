@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>화학 합성 퍼즐</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121a23; --panel2:#18222d; --line:#26323f;
+    --text:#e6edf3; --dim:#8494a3; --accent:#4dd0e1; --gold:#e8c06a;
+    --gas:#46c8b0; --liquid:#5a9bf0; --solid:#d18a45;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg); color:var(--text); overflow:hidden;
+    font-family:"Pretendard","Malgun Gothic",system-ui,sans-serif;
+    display:flex; flex-direction:column;
+  }
+  header{display:flex;align-items:center;gap:20px;padding:9px 16px;background:var(--panel);border-bottom:1px solid var(--line);flex:none}
+  header h1{font-size:16px;margin:0}
+  header h1 span{color:var(--accent)}
+  .stat{font-size:11px;color:var(--dim);line-height:1.35}
+  .stat b{display:block;font-size:16px;color:var(--text);font-variant-numeric:tabular-nums}
+  .stat b.gold{color:var(--gold)}
+  .stat b.warn{color:#e07a5a}
+  .sp{flex:1}
+  button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+  button:hover:not(:disabled){background:#22303e;border-color:#3d4a5a}
+  button:disabled{opacity:.4;cursor:default}
+
+  #app{flex:1;display:flex;gap:14px;padding:14px;min-height:0;justify-content:center}
+  .col{display:flex;flex-direction:column;gap:10px;min-height:0}
+  .pane{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .pane h2{font-size:11px;color:var(--dim);letter-spacing:1px;margin:0 0 9px;font-weight:600}
+  #left{width:214px}
+  #right{width:272px;min-height:0}
+  #right .pane{display:flex;flex-direction:column;min-height:0;flex:1}
+
+  .goalName{font-size:15px;font-weight:700;color:var(--gold);font-variant-numeric:tabular-nums}
+  .goalSub{font-size:11px;color:var(--dim);margin-top:4px;line-height:1.6}
+  .gbar{height:7px;background:var(--panel2);border-radius:4px;margin-top:9px;overflow:hidden}
+  .gbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#e8c06a,#4dd0e1);transition:width .35s}
+
+  /* 보드 */
+  #boardWrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  #board{display:grid;gap:5px;padding:9px;border-radius:14px;position:relative;
+    background:linear-gradient(180deg,#0f1a22 0%,#0f1720 45%,#141019 100%);
+    border:1px solid var(--line);
+    box-shadow:inset 0 20px 40px rgba(70,200,176,.05), inset 0 -20px 40px rgba(209,138,69,.06);}
+  .cell{width:74px;height:74px;border-radius:11px;background:rgba(255,255,255,.02)}
+  #tiles{position:absolute;inset:0;pointer-events:none}
+  .tok{
+    position:absolute; width:74px; height:74px; border-radius:11px;
+    background:var(--panel2); border:1px solid var(--line); border-bottom:3px solid var(--phase);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    cursor:pointer; user-select:none; pointer-events:auto;
+    transition:left .55s cubic-bezier(.34,.8,.3,1), top .55s cubic-bezier(.34,.8,.3,1),
+               opacity .4s, box-shadow .18s;
+  }
+  .tok.gone{opacity:0;transform:scale(.45);transition:opacity .45s, transform .45s}
+  @keyframes popin{0%{transform:scale(.3);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+  .tok.popin{animation:popin .45s}
+  .tok .f{font-size:17px;font-weight:800;color:var(--phase);line-height:1.05;text-align:center}
+  .tok .n{font-size:9px;color:var(--dim);line-height:1;max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tok.anchor{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 0 18px rgba(77,208,225,.45)}
+  .tok.path{box-shadow:inset 0 0 0 2px rgba(77,208,225,.3)}
+  @keyframes glow{0%,100%{box-shadow:0 0 0 2px var(--gold),0 0 12px rgba(232,192,106,.35)}50%{box-shadow:0 0 0 2px var(--gold),0 0 24px rgba(232,192,106,.8)}}
+  .tok.cand{animation:glow 1.15s infinite;border-color:var(--gold);z-index:3}
+  .tok.dim{opacity:.3}
+  @keyframes fire{0%{box-shadow:0 0 0 0 rgba(232,192,106,.85)}100%{box-shadow:0 0 0 24px rgba(232,192,106,0)}}
+  .tok.react{animation:fire .4s}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}65%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+  .tok.new{animation:pop .3s}
+  @keyframes bond{0%,100%{box-shadow:0 0 0 2px var(--accent)}50%{box-shadow:0 0 0 4px var(--accent),0 0 22px rgba(77,208,225,.8)}}
+  .tok.bond{animation:bond .55s 2;border-color:var(--accent);z-index:2}
+  .legend{display:flex;gap:16px;font-size:11px;color:var(--dim)}
+  .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+
+  #float{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-size:30px;font-weight:900;color:var(--gold);pointer-events:none;opacity:0;text-shadow:0 4px 20px rgba(0,0,0,.9);z-index:9;white-space:nowrap;text-align:center}
+  @keyframes floatUp{0%{opacity:0;transform:translate(-50%,-40%) scale(.7)}25%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}100%{opacity:0;transform:translate(-50%,-95%) scale(1)}}
+  #float.on{animation:floatUp 1.1s}
+
+  #log{overflow-y:auto;display:flex;flex-direction:column;gap:6px;flex:1;min-height:0}
+  .lg{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;border-left:3px solid var(--line)}
+  .lg .eq{font-size:12px;font-weight:600}
+  .lg .mt{font-size:10px;color:var(--dim);margin-top:2px}
+  .lg.win{border-left-color:var(--gold)}
+  .lg.win .mt{color:var(--gold)}
+
+  .modal{position:fixed;inset:0;background:rgba(4,7,10,.85);display:none;align-items:center;justify-content:center;padding:24px;z-index:60}
+  .modal.on{display:flex}
+  .sheet{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:min(880px,100%);max-height:86vh;display:flex;flex-direction:column}
+  .sheet .hd{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .sheet .hd h2{margin:0;font-size:16px}
+  .sheet .bd{overflow-y:auto;padding:16px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--phase);border-radius:10px;padding:9px 11px}
+  .card .t{font-weight:700;font-size:13px;color:var(--phase)}
+  .card .d{font-size:11px;color:var(--dim);margin-top:3px;line-height:1.5}
+  .card.lock{opacity:.3;border-left-color:var(--line)}
+  .card.lock .t{color:var(--dim)}
+  .center{text-align:center;padding:24px}
+  .center h3{font-size:23px;margin:0 0 8px}
+  .center p{color:var(--dim);font-size:13px;line-height:1.75;margin:0 0 16px}
+  .big{font-size:38px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums}
+  .unlock{display:inline-flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 13px;margin:4px 3px}
+  .unlock .f{font-size:19px;font-weight:800;color:var(--accent)}
+  kbd{background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>화학 합성 <span>퍼즐</span></h1>
+  <div class="stat">점수<b id="score">0</b></div>
+  <div class="stat">최고<b id="best" class="gold">0</b></div>
+  <div class="stat">스테이지<b id="stageNo">1</b></div>
+  <div class="stat">남은 반응<b id="moves">0</b></div>
+  <div class="sp"></div>
+  <button id="btnUndo" disabled>되돌리기</button>
+  <button id="btnSpeed">속도 ×1</button>
+  <button id="btnCodex">도감</button>
+  <button id="btnHelp">도움말</button>
+  <button id="btnRestart">다시 시작</button>
+</header>
+
+<div id="app">
+  <div class="col" id="left">
+    <div class="pane">
+      <h2>스테이지 목표</h2>
+      <div class="goalName" id="goalName">—</div>
+      <div class="goalSub" id="goalSub"></div>
+      <div class="gbar"><i id="goalBar"></i></div>
+    </div>
+    <div class="pane">
+      <h2>선택한 칸</h2>
+      <div id="selInfo" style="font-size:12px;color:var(--dim);line-height:1.7">
+        칸을 누르면 기준점이 되고,<br>거기서부터 이어서 누를 수 있는<br>칸이 금색으로 빛납니다.
+      </div>
+    </div>
+    <div class="pane">
+      <h2>이번 실험대의 원소</h2>
+      <div id="unlocked" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+    </div>
+  </div>
+
+  <div id="boardWrap">
+    <div id="board"><div id="float"></div></div>
+    <div class="legend">
+      <span><i style="background:var(--gas)"></i>기체 · 만들면 맨 위로</span>
+      <span><i style="background:var(--liquid)"></i>액체</span>
+      <span><i style="background:var(--solid)"></i>고체 · 만들면 맨 아래로</span>
+    </div>
+  </div>
+
+  <div class="col" id="right">
+    <div class="pane">
+      <h2>합성 기록</h2>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal"><div class="sheet">
+  <div class="hd"><h2 id="mTitle">도감</h2><div class="sp"></div><button id="mClose">닫기</button></div>
+  <div class="bd" id="mBody"></div>
+</div></div>
+
+<script>
+/* ============================================================
+   물질 사전 — comp: 원자 구성 · p: 상 · el: 원소
+   한 줄로 이어 누른 칸들의 원자를 모두 더한 구성이
+   아래 사전의 어떤 물질과 정확히 같으면 그 물질이 합성된다.
+   ============================================================ */
+const C = {
+  /* ---- 원소 ---- */
+  H :{n:'수소',    f:'H',  p:'gas',   el:1, w:4, comp:{H:1},  d:'가장 가벼운 원소. 우주 질량의 약 75%.'},
+  O :{n:'산소',    f:'O',  p:'gas',   el:1, w:4, comp:{O:1},  d:'호흡과 연소에 반드시 필요한 원소.'},
+  C :{n:'탄소',    f:'C',  p:'solid', el:1, w:3, comp:{C:1},  d:'모든 유기물의 뼈대가 되는 원소.'},
+  N :{n:'질소',    f:'N',  p:'gas',   el:1, w:3, comp:{N:1},  d:'공기의 78%를 차지하는 원소.'},
+  S :{n:'황',      f:'S',  p:'solid', el:1, w:2, comp:{S:1},  d:'노란 고체. 화산 근처에서 발견된다.'},
+  Na:{n:'나트륨',  f:'Na', p:'solid', el:1, w:2, comp:{Na:1}, d:'물에 닿으면 격렬히 반응하는 알칼리 금속.'},
+  Cl:{n:'염소',    f:'Cl', p:'gas',   el:1, w:2, comp:{Cl:1}, d:'황록색의 반응성이 큰 할로젠 원소.'},
+  Ca:{n:'칼슘',    f:'Ca', p:'solid', el:1, w:2, comp:{Ca:1}, d:'뼈와 석회암을 이루는 금속 원소.'},
+  Mg:{n:'마그네슘',f:'Mg', p:'solid', el:1, w:2, comp:{Mg:1}, d:'눈부신 흰빛을 내며 타는 가벼운 금속.'},
+  Fe:{n:'철',      f:'Fe', p:'solid', el:1, w:2, comp:{Fe:1}, d:'문명을 만든 금속. 지구 핵의 주성분.'},
+  K :{n:'칼륨',    f:'K',  p:'solid', el:1, w:2, comp:{K:1},  d:'보라색 불꽃을 내는 알칼리 금속.'},
+  Cu:{n:'구리',    f:'Cu', p:'solid', el:1, w:2, comp:{Cu:1}, d:'전기를 가장 잘 나르는 실용 금속.'},
+
+  /* ---- 기체 ---- */
+  H2 :{n:'수소',      f:'H₂',   p:'gas', comp:{H:2},      d:'가장 가벼운 분자. 연료전지의 연료.'},
+  O2 :{n:'산소',      f:'O₂',   p:'gas', comp:{O:2},      d:'대기의 21%를 차지하며 연소를 돕는다.'},
+  N2 :{n:'질소',      f:'N₂',   p:'gas', comp:{N:2},      d:'삼중결합이 강해 좀처럼 반응하지 않는다.'},
+  Cl2:{n:'염소',      f:'Cl₂',  p:'gas', comp:{Cl:2},     d:'수돗물 소독에 쓰이지만 독성이 강하다.'},
+  O3 :{n:'오존',      f:'O₃',   p:'gas', comp:{O:3},      d:'자외선을 막아주는 오존층의 주인공.'},
+  CO :{n:'일산화탄소', f:'CO',   p:'gas', comp:{C:1,O:1},  d:'불완전 연소로 생기는 무색무취의 독가스.'},
+  CO2:{n:'이산화탄소', f:'CO₂',  p:'gas', comp:{C:1,O:2},  d:'호흡과 연소의 산물이자 대표적 온실기체.'},
+  CH4:{n:'메테인',    f:'CH₄',  p:'gas', comp:{C:1,H:4},  d:'천연가스의 주성분. 가장 단순한 탄화수소.'},
+  C2H2:{n:'아세틸렌', f:'C₂H₂', p:'gas', comp:{C:2,H:2},  d:'용접 불꽃을 만드는 삼중결합 탄화수소.'},
+  C2H4:{n:'에틸렌',   f:'C₂H₄', p:'gas', comp:{C:2,H:4},  d:'과일을 익히는 식물 호르몬이자 플라스틱 원료.'},
+  C2H6:{n:'에테인',   f:'C₂H₆', p:'gas', comp:{C:2,H:6},  d:'천연가스에 섞여 있는 탄화수소.'},
+  C3H8:{n:'프로페인', f:'C₃H₈', p:'gas', comp:{C:3,H:8},  d:'부탄가스와 함께 쓰이는 액화석유가스.'},
+  C4H10:{n:'뷰테인',  f:'C₄H₁₀',p:'gas', comp:{C:4,H:10}, d:'라이터와 휴대용 버너의 연료.'},
+  NH3:{n:'암모니아',  f:'NH₃',  p:'gas', comp:{N:1,H:3},  d:'하버-보슈법으로 대량 생산되어 세계를 먹여 살린다.'},
+  NO :{n:'일산화질소',f:'NO',   p:'gas', comp:{N:1,O:1},  d:'번개가 칠 때 공기 중에서 만들어진다.'},
+  NO2:{n:'이산화질소',f:'NO₂',  p:'gas', comp:{N:1,O:2},  d:'적갈색의 대기오염 물질.'},
+  N2O:{n:'아산화질소',f:'N₂O',  p:'gas', comp:{N:2,O:1},  d:'웃음 가스. 최초의 흡입 마취제.'},
+  N2O4:{n:'사산화이질소',f:'N₂O₄',p:'gas',comp:{N:2,O:4}, d:'로켓 추진제의 산화제.'},
+  CH3NH2:{n:'메틸아민',f:'CH₃NH₂',p:'gas',comp:{C:1,H:5,N:1}, d:'생선 비린내의 정체. 가장 단순한 아민.'},
+  HCl:{n:'염화수소',  f:'HCl',  p:'gas', comp:{H:1,Cl:1}, d:'물에 녹으면 염산. 위액의 성분이기도 하다.'},
+  H2S:{n:'황화수소',  f:'H₂S',  p:'gas', comp:{H:2,S:1},  d:'썩은 달걀 냄새의 독성 기체.'},
+  SO2:{n:'이산화황',  f:'SO₂',  p:'gas', comp:{S:1,O:2},  d:'산성비의 원인이 되는 자극성 기체.'},
+  HCN:{n:'시안화수소',f:'HCN',  p:'gas', comp:{H:1,C:1,N:1}, d:'아몬드 향이 나는 맹독.'},
+
+  /* ---- 액체 ---- */
+  H2O :{n:'물',        f:'H₂O',    p:'liquid', comp:{H:2,O:1},     d:'생명의 용매. 지구 표면의 70%를 덮고 있다.'},
+  H2O2:{n:'과산화수소', f:'H₂O₂',   p:'liquid', comp:{H:2,O:2},     d:'소독약(옥시풀)의 성분. 서서히 분해된다.'},
+  N2H4:{n:'하이드라진', f:'N₂H₄',   p:'liquid', comp:{N:2,H:4},     d:'인공위성 자세제어에 쓰이는 로켓 연료.'},
+  HNO2:{n:'아질산',     f:'HNO₂',   p:'liquid', comp:{H:1,N:1,O:2}, d:'불안정한 약산. 육류 발색제의 원료.'},
+  HNO3:{n:'질산',       f:'HNO₃',   p:'liquid', comp:{H:1,N:1,O:3}, d:'비료와 폭약을 만드는 강산.'},
+  SO3 :{n:'삼산화황',   f:'SO₃',    p:'liquid', comp:{S:1,O:3},     d:'황산 제조의 핵심 중간체.'},
+  H2SO4:{n:'황산',      f:'H₂SO₄',  p:'liquid', comp:{H:2,S:1,O:4}, d:'‘산업의 피’. 생산량이 국력의 지표로 쓰였다.'},
+  H2CO3:{n:'탄산',      f:'H₂CO₃',  p:'liquid', comp:{H:2,C:1,O:3}, d:'탄산음료의 톡 쏘는 맛. 쉽게 분해된다.'},
+  CH2O:{n:'폼알데하이드',f:'CH₂O',  p:'liquid', comp:{C:1,H:2,O:1}, d:'표본을 보존하는 방부제. 포도당의 씨앗.'},
+  HCOOH:{n:'폼산',      f:'HCOOH',  p:'liquid', comp:{C:1,H:2,O:2}, d:'개미가 쏘는 산. 가장 단순한 카복실산.'},
+  CH3OH:{n:'메탄올',    f:'CH₃OH',  p:'liquid', comp:{C:1,H:4,O:1}, d:'가장 단순한 알코올. 마시면 실명한다.'},
+  CH3CHO:{n:'아세트알데하이드',f:'CH₃CHO',p:'liquid',comp:{C:2,H:4,O:1}, d:'숙취의 주범. 술이 분해되며 생긴다.'},
+  CH3COOH:{n:'아세트산',f:'CH₃COOH',p:'liquid',comp:{C:2,H:4,O:2},  d:'식초의 신맛. 에탄올이 산화되면 만들어진다.'},
+  C2H5OH:{n:'에탄올',   f:'C₂H₅OH', p:'liquid', comp:{C:2,H:6,O:1}, d:'술의 알코올. 인류 최초의 화학 산물.'},
+  C3H6O:{n:'아세톤',    f:'C₃H₆O',  p:'liquid', comp:{C:3,H:6,O:1}, d:'매니큐어를 지우는 강력한 용매.'},
+  C6H6:{n:'벤젠',       f:'C₆H₆',   p:'liquid', comp:{C:6,H:6},     d:'육각 고리. 케쿨레가 꿈에서 보았다는 구조.'},
+  C7H8:{n:'톨루엔',     f:'C₇H₈',   p:'liquid', comp:{C:7,H:8},     d:'시너 냄새의 주인공. 벤젠에 가지 하나.'},
+  CS2 :{n:'이황화탄소', f:'CS₂',    p:'liquid', comp:{C:1,S:2},     d:'인화성이 매우 큰 용매.'},
+  NH4OH:{n:'암모니아수',f:'NH₄OH',  p:'liquid', comp:{N:1,H:5,O:1}, d:'코를 찌르는 약염기 수용액.'},
+  HClO:{n:'하이포아염소산',f:'HClO', p:'liquid', comp:{H:1,Cl:1,O:1},d:'표백제의 유효 성분.'},
+
+  /* ---- 고체 ---- */
+  CH4N2O:{n:'요소',     f:'CO(NH₂)₂',p:'solid', comp:{C:1,H:4,N:2,O:1}, d:'생명체가 만든 첫 유기물. 뵐러가 실험실에서 합성해 생기론을 무너뜨렸다.'},
+  C2H5NO2:{n:'글리신',  f:'C₂H₅NO₂', p:'solid', comp:{C:2,H:5,N:1,O:2}, d:'가장 단순한 아미노산. 단백질의 벽돌.'},
+  C6H12O6:{n:'포도당',  f:'C₆H₁₂O₆', p:'solid', comp:{C:6,H:12,O:6},    d:'광합성이 만들어내는 생명의 연료.'},
+  NaCl :{n:'소금',      f:'NaCl',   p:'solid', comp:{Na:1,Cl:1},        d:'폭발하는 금속과 독가스가 만나 먹을 수 있는 소금이 된다.'},
+  NaOH :{n:'수산화나트륨',f:'NaOH', p:'solid', comp:{Na:1,O:1,H:1},     d:'대표적인 강염기. 비누를 만든다.'},
+  Na2O :{n:'산화나트륨', f:'Na₂O',  p:'solid', comp:{Na:2,O:1},         d:'유리를 만들 때 쓰이는 염기성 산화물.'},
+  NaClO:{n:'차아염소산나트륨',f:'NaClO',p:'solid',comp:{Na:1,Cl:1,O:1}, d:'가정용 락스의 주성분.'},
+  Na2CO3:{n:'탄산나트륨',f:'Na₂CO₃',p:'solid', comp:{Na:2,C:1,O:3},     d:'유리와 세제를 만드는 소다회.'},
+  NaHCO3:{n:'베이킹소다',f:'NaHCO₃',p:'solid', comp:{Na:1,H:1,C:1,O:3}, d:'가열하면 이산화탄소를 내며 빵을 부풀린다.'},
+  NaNO3:{n:'질산나트륨', f:'NaNO₃', p:'solid', comp:{Na:1,N:1,O:3},     d:'칠레초석. 비료 혁명 이전의 질소원.'},
+  NH4Cl:{n:'염화암모늄', f:'NH₄Cl', p:'solid', comp:{N:1,H:4,Cl:1},     d:'건전지와 감초사탕에 쓰이는 염.'},
+  CaO  :{n:'생석회',    f:'CaO',    p:'solid', comp:{Ca:1,O:1},         d:'물과 만나면 열을 내뿜는다. 발열 도시락의 원리.'},
+  CaOH2:{n:'소석회',    f:'Ca(OH)₂',p:'solid', comp:{Ca:1,O:2,H:2},     d:'석회수. 이산화탄소를 만나면 뿌옇게 흐려진다.'},
+  CaCO3:{n:'탄산칼슘',  f:'CaCO₃',  p:'solid', comp:{Ca:1,C:1,O:3},     d:'석회석, 조개껍데기, 분필의 주성분.'},
+  CaCl2:{n:'염화칼슘',  f:'CaCl₂',  p:'solid', comp:{Ca:1,Cl:2},        d:'제설제이자 강력한 제습제.'},
+  CaSO4:{n:'석고',      f:'CaSO₄',  p:'solid', comp:{Ca:1,S:1,O:4},     d:'깁스와 석고보드의 재료.'},
+  CaC2 :{n:'탄화칼슘',  f:'CaC₂',   p:'solid', comp:{Ca:1,C:2},         d:'물을 부으면 아세틸렌이 나온다. 카바이드 등불.'},
+  MgO  :{n:'산화마그네슘',f:'MgO',  p:'solid', comp:{Mg:1,O:1},         d:'마그네슘이 타고 남은 흰 재.'},
+  MgOH2:{n:'수산화마그네슘',f:'Mg(OH)₂',p:'solid',comp:{Mg:1,O:2,H:2},  d:'제산제로 쓰이는 약염기.'},
+  MgSO4:{n:'황산마그네슘',f:'MgSO₄',p:'solid', comp:{Mg:1,S:1,O:4},     d:'엡솜 소금. 목욕제로 쓰인다.'},
+  FeO  :{n:'산화철(II)',f:'FeO',    p:'solid', comp:{Fe:1,O:1},         d:'검은색 산화철. 유리에 푸른빛을 준다.'},
+  Fe2O3:{n:'산화철(III)',f:'Fe₂O₃', p:'solid', comp:{Fe:2,O:3},         d:'붉은 녹. 화성이 붉게 보이는 이유.'},
+  Fe3O4:{n:'자철석',    f:'Fe₃O₄',  p:'solid', comp:{Fe:3,O:4},         d:'자석에 붙는 검은 광물. 나침반의 기원.'},
+  FeS  :{n:'황화철',    f:'FeS',    p:'solid', comp:{Fe:1,S:1},         d:'철과 황이 열을 내며 결합한 검은 화합물.'},
+  FeS2 :{n:'황철석',    f:'FeS₂',   p:'solid', comp:{Fe:1,S:2},         d:'금빛으로 반짝여 ‘바보의 금’이라 불린다.'},
+  CuO  :{n:'산화구리',  f:'CuO',    p:'solid', comp:{Cu:1,O:1},         d:'구리를 가열하면 생기는 검은 가루.'},
+  CuSO4:{n:'황산구리',  f:'CuSO₄',  p:'solid', comp:{Cu:1,S:1,O:4},     d:'물을 만나면 선명한 파란색이 된다.'},
+  KCl  :{n:'염화칼륨',  f:'KCl',    p:'solid', comp:{K:1,Cl:1},         d:'저나트륨 소금과 비료에 쓰인다.'},
+  KOH  :{n:'수산화칼륨',f:'KOH',    p:'solid', comp:{K:1,O:1,H:1},      d:'액체 비누를 만드는 강염기.'},
+  KNO3 :{n:'질산칼륨',  f:'KNO₃',   p:'solid', comp:{K:1,N:1,O:3},      d:'초석. 흑색화약의 산소 공급원.'}
+};
+
+function ckey(comp){ return Object.keys(comp).sort().map(k=>k+comp[k]).join(''); }
+const LOOKUP = {};
+Object.keys(C).forEach(id=>{ const k=ckey(C[id].comp); if(!(k in LOOKUP)) LOOKUP[k]=id; });
+const atoms = id => Object.values(C[id].comp).reduce((a,b)=>a+b,0);
+
+/* ============ 스테이지 ============ */
+const STAGES = [
+  {name:'기본 4원소',  pool:['H','O','C','N'],        target:2400, mv:18, seed:4, big:6,
+   tip:'수소·산소·탄소·질소. 물, 이산화탄소, 메테인, 암모니아부터.'},
+  {name:'탄소의 세계', pool:['H','O','C'],            target:3400, mv:22, seed:6, big:8,
+   tip:'분자가 몇 개 깔린 채로 시작합니다. 분자에 원자를 이어 붙여 더 큰 분자로.'},
+  {name:'생명의 분자', pool:['H','O','C','N'],        target:3400, mv:26, seed:5, big:10,
+   tip:'요소·글리신·포도당. 원자 수가 많은 분자일수록 점수 배율이 붙습니다.'},
+  {name:'황과 산',    pool:['H','O','C','S'],         target:3600, mv:30, seed:6, big:12,
+   tip:'황화수소·이산화황·황산. 황은 무거워 바닥에 모입니다.'},
+  {name:'소금과 염기', pool:['H','O','C','Na','Cl'],  target:3400, mv:34, seed:8, big:12,
+   tip:'소금·락스·소다회. 깔려 있는 분자를 재료로 쓰세요.'},
+  {name:'광물과 금속', pool:['H','O','C','Ca','Fe'],  target:3800, mv:38, seed:9, big:14,
+   tip:'생석회·석회석·자철석. 가장 큰 분자를 노려볼 만한 판입니다.'}
+];
+
+/* ============ 상태 ============ */
+const N = 6, DIRS = [[0,1],[0,-1],[1,0],[-1,0]];
+const boardEl = document.getElementById('board');
+boardEl.style.gridTemplateColumns = 'repeat('+N+',74px)';
+let grid, uids, uidSeq=0, score, stageScore, stage, moves, pool, anchor, cands, busy, found, best, undoState;
+let SPEED = 1;                       // 애니메이션 배속
+const wait = ms => new Promise(res=>setTimeout(res, ms/SPEED));
+function put(r,c,id){ grid[r][c]=id; uids[r][c] = (id ? ++uidSeq : null); }
+function clear(r,c){ grid[r][c]=null; uids[r][c]=null; }
+
+try{ best = +(localStorage.getItem('chem-best3')||0); }catch(e){ best=0; }
+try{ found = new Set(JSON.parse(localStorage.getItem('chem-found3')||'[]')); }catch(e){ found=new Set(); }
+
+function init(){
+  score=0; stage=0; busy=false; undoState=null;
+  startStage();
+  document.getElementById('modal').classList.remove('on');
+  document.getElementById('log').innerHTML='';
+}
+function startStage(){
+  const g = STAGES[stage];
+  pool = g.pool.slice();
+  stageScore = 0; moves = g.mv; anchor=null; cands=[]; undoState=null;
+  newBoard();
+  buildCells(); render(); renderSide();
+}
+function newBoard(){
+  grid = Array.from({length:N},()=>Array(N).fill(null));
+  uids = Array.from({length:N},()=>Array(N).fill(null));
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) put(r,c, pickFor(r,c));
+  seedMolecules(STAGES[stage].seed);
+  deClump(); ensurePlayable();
+}
+/* 판을 깔 때 같은 물질이 줄줄이 늘어선 곳을 흩어 준다.
+   시작 판은 상과 무관하게 섞여 있으므로 어느 칸끼리든 맞바꾼다.
+   일부러 일부는 남겨 둬서 붙어 있는 자리도 몇 군데 생긴다.            */
+function deClump(){
+  const same = (r,c,id) => {
+    let n=0;
+    for(const [dr,dc] of DIRS){
+      const nr=r+dr, nc=c+dc;
+      if(nr<0||nc<0||nr>=N||nc>=N) continue;
+      if(grid[nr][nc]===id) n++;
+    }
+    return n;
+  };
+  for(let pass=0; pass<4; pass++){
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+      const id=grid[r][c]; if(!id) continue;
+      if(same(r,c,id) < 2) continue;              // 두 칸 이상 붙어 있을 때만 손본다
+      if(Math.random() < 0.3) continue;           // 30%는 그대로 둔다
+      const opts=[];
+      for(let rr=0;rr<N;rr++) for(let cc=0;cc<N;cc++){
+        const o=grid[rr][cc];
+        if(!o || o===id) continue;
+        opts.push([rr,cc]);
+      }
+      if(!opts.length) continue;
+      const [rr,cc]=opts[Math.floor(Math.random()*opts.length)];
+      const other=grid[rr][cc];
+      const before = same(r,c,id) + same(rr,cc,other);
+      grid[r][c]=other; grid[rr][cc]=id;
+      const t=uids[r][c]; uids[r][c]=uids[rr][cc]; uids[rr][cc]=t;
+      if(same(r,c,other) + same(rr,cc,id) >= before){   // 나아지지 않으면 되돌린다
+        grid[r][c]=id; grid[rr][cc]=other;
+        const t2=uids[r][c]; uids[r][c]=uids[rr][cc]; uids[rr][cc]=t2;
+      }
+    }
+  }
+}
+/* 스테이지가 올라갈수록 분자가 몇 개 깔린 채로 시작한다 */
+function seedMolecules(n){
+  if(!n) return;
+  const big = STAGES[stage].big;
+  const cand = Object.keys(C).filter(id=> !C[id].el
+      && Object.keys(C[id].comp).every(e=>pool.includes(e))
+      && atoms(id)>=2 && atoms(id)<=big);
+  if(!cand.length) return;
+  const spots=[];
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) spots.push([r,c]);
+  for(let i=spots.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [spots[i],spots[j]]=[spots[j],spots[i]]; }
+  for(let i=0;i<n && i<spots.length;i++){
+    const [r,c]=spots[i];
+    put(r,c, cand[Math.floor(Math.random()*cand.length)]);
+  }
+}
+/* 새 원소 뽑기 — 판에 이미 흔한 원소는 덜 나오게 한다.
+   (그냥 무작위로 두면 기체는 계속 소모되고 탄소 같은 고체만 바닥에 쌓인다) */
+const sumW = () => pool.reduce((a,id)=>a+C[id].w, 0);
+function randEl(){
+  const cnt={}; pool.forEach(id=>cnt[id]=0);
+  let cells=0, lower=0;
+  if(grid) for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const id=grid[r][c]; if(!id) continue;
+    cells++;
+    if(C[id].p!=='gas') lower++;
+    if(id in cnt) cnt[id]++;
+  }
+  const total = sumW(), bag=[];
+  pool.forEach(id=>{
+    const target = C[id].w/total;                  // 원래 나와야 할 비율
+    const share  = cells ? cnt[id]/cells : target; // 지금 판에 깔린 비율
+    let w = C[id].w;
+    if(share > target) w *= Math.max(0.08, 1 - (share-target)/target);   // 흔하면 억제
+    if(share > 0.28) w *= 0.1;                                           // 한 원소가 판의 28%를 넘으면 강하게 억제
+    if(C[id].p!=='gas' && cells && lower/cells > 0.45) w *= 0.35;        // 고체·액체가 판의 절반 가까이 차면 억제
+    const n = Math.max(1, Math.round(w*12));
+    for(let i=0;i<n;i++) bag.push(id);
+  });
+  return bag[Math.floor(Math.random()*bag.length)];
+}
+/* 놓을 자리를 보고 뽑기 — 같은 원소가 줄줄이 붙는 것을 줄인다.
+   다만 네 번에 한 번은 그냥 무작위로 둬서 몇 개는 붙어 있게 남긴다. */
+function pickFor(r, c){
+  if(Math.random() < 0.25) return randEl();
+  let bestId=null, bestScore=99;
+  for(let i=0;i<5;i++){
+    const id = randEl();
+    let s=0;
+    for(const [dr,dc] of DIRS){
+      const nr=r+dr, nc=c+dc;
+      if(nr<0||nc<0||nr>=N||nc>=N) continue;
+      if(grid[nr][nc]===id) s++;
+    }
+    if(s<bestScore){ bestScore=s; bestId=id; if(!s) break; }
+  }
+  return bestId;
+}
+
+/* ============ 이동 — 내가 만든 것만 움직인다 ============
+   합성한 것이 기체면 그 줄의 맨 위까지 떠오르고,
+   액체·고체면 맨 아래까지 가라앉는다.
+   지나간 칸들만 한 칸씩 밀려나고, 나머지 판은 그대로 있는다.
+   (처음 깔린 원소들은 상과 무관하게 섞여 있어도 된다)                */
+function travel(uid){
+  const pos = findUid(uid);
+  if(!pos) return null;
+  const [r,c] = pos;
+  const up = C[grid[r][c]].p === 'gas';
+  const target = up ? 0 : N-1;
+  if(r === target) return pos;
+  const step = up ? -1 : 1;
+  const id = grid[r][c], u = uids[r][c];
+  for(let k=r; k!==target; k+=step){                 // 지나가는 칸들을 한 칸씩 밀어낸다
+    grid[k][c] = grid[k+step][c];
+    uids[k][c] = uids[k+step][c];
+  }
+  grid[target][c]=id; uids[target][c]=u;
+  return [target, c];
+}
+/* 생성 — 비어 있는 칸에 새 원소가 그 자리에서 들어온다 */
+function fillHoles(){
+  const fresh = new Set();
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(!grid[r][c]){
+    put(r, c, pickFor(r,c));
+    fresh.add(uids[r][c]);
+  }
+  return fresh;
+}
+/* 합성물이 이동 뒤 어디로 갔는지 찾는다 */
+function findUid(uid){
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(uids[r][c]===uid) return [r,c];
+  return null;
+}
+
+/* ============ 합성 후보 ============ */
+function candsFrom(r,c){
+  const res=[];
+  for(const [dr,dc] of DIRS){
+    const comp = Object.assign({}, C[grid[r][c]].comp);
+    const cells = [[r,c]];
+    for(let k=1;k<N;k++){
+      const nr=r+dr*k, nc=c+dc*k;
+      if(nr<0||nc<0||nr>=N||nc>=N) break;
+      const sub = C[grid[nr][nc]].comp;
+      for(const e in sub) comp[e]=(comp[e]||0)+sub[e];
+      cells.push([nr,nc]);
+      const prod = LOOKUP[ckey(comp)];
+      if(prod) res.push({r:nr,c:nc,cells:cells.slice(),prod:prod});
+    }
+  }
+  return res;
+}
+function anyMove(){
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(candsFrom(r,c).length) return [r,c];
+  return null;
+}
+function ensurePlayable(){
+  let guard=0;
+  while(!anyMove() && guard++<80){
+    for(let r=0;r<N;r++) for(let c=0;c<N;c++) put(r,c, pickFor(r,c));
+  }
+}
+/* 같은 물질이 붙어 있는 덩어리 */
+function clusterAt(r,c){
+  const id = grid[r][c], seen=new Set([r+','+c]), out=[[r,c]], q=[[r,c]];
+  while(q.length){
+    const [cr,cc]=q.shift();
+    for(const [dr,dc] of DIRS){
+      const nr=cr+dr, nc=cc+dc, k=nr+','+nc;
+      if(nr<0||nc<0||nr>=N||nc>=N||seen.has(k)) continue;
+      if(grid[nr][nc]!==id) continue;
+      seen.add(k); out.push([nr,nc]); q.push([nr,nc]);
+    }
+  }
+  return out;
+}
+
+/* ============ 렌더 ============ */
+const CELL = 74, GAP = 5, PAD = 9;
+let tileEls = new Map();                       // uid → DOM
+function buildCells(){
+  boardEl.querySelectorAll('.cell').forEach(n=>n.remove());
+  tileEls.forEach(el=>el.remove()); tileEls.clear();
+  let layer = document.getElementById('tiles');
+  if(layer) layer.remove();
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const d=document.createElement('div');
+    d.className='cell';
+    boardEl.appendChild(d);
+  }
+  layer=document.createElement('div'); layer.id='tiles';
+  boardEl.appendChild(layer);
+}
+const STATE_CLS = ['anchor','cand','path','dim','react','bond','gone'];
+function render(extra){
+  const layer=document.getElementById('tiles');
+  const pathSet=new Set();
+  if(anchor) cands.forEach(cd=>cd.cells.forEach(([r,c])=>pathSet.add(r+','+c)));
+  const alive=new Set();
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+    const id=grid[r][c]; if(!id) continue;
+    const uid=uids[r][c]; alive.add(uid);
+    const sp=C[id];
+    let t=tileEls.get(uid);
+    if(!t){                                    // 새로 생긴 타일
+      t=document.createElement('div');
+      t.className='tok popin';
+      t.innerHTML='<div class="f"></div><div class="n"></div>';
+      t.style.left=(PAD+c*(CELL+GAP))+'px';
+      t.style.top =(PAD+r*(CELL+GAP))+'px';
+      t.addEventListener('click', ()=> tap(+t.dataset.r, +t.dataset.c));
+      t.addEventListener('animationend', ()=> t.classList.remove('popin'));
+      layer.appendChild(t);
+      tileEls.set(uid,t);
+    }
+    if(t.dataset.sp!==id){                     // 같은 자리에서 물질이 바뀐 경우
+      t.dataset.sp=id;
+      t.style.setProperty('--phase','var(--'+sp.p+')');
+      t.querySelector('.f').textContent=sp.f;
+      t.querySelector('.n').textContent=sp.n;
+    }
+    t.dataset.r=r; t.dataset.c=c;
+    t.style.left=(PAD+c*(CELL+GAP))+'px';
+    t.style.top =(PAD+r*(CELL+GAP))+'px';
+    STATE_CLS.forEach(k=>t.classList.remove(k));
+    if(anchor){
+      if(anchor[0]===r&&anchor[1]===c) t.classList.add('anchor');
+      else if(cands.some(x=>x.r===r&&x.c===c)) t.classList.add('cand');
+      else if(pathSet.has(r+','+c)) t.classList.add('path');
+      else t.classList.add('dim');
+    }
+    if(extra && extra.cells.some(p=>p[0]===r&&p[1]===c)) t.classList.add(extra.cls);
+  }
+  tileEls.forEach((el,uid)=>{                  // 사라진 타일은 서서히 지운다
+    if(alive.has(uid)) return;
+    el.classList.add('gone');
+    setTimeout(()=>el.remove(), 500);
+    tileEls.delete(uid);
+  });
+}
+function renderSide(){
+  document.getElementById('score').textContent = score.toLocaleString();
+  document.getElementById('best').textContent  = best.toLocaleString();
+  document.getElementById('stageNo').textContent = (stage+1)+' / '+STAGES.length;
+  const mv=document.getElementById('moves');
+  mv.textContent = moves; mv.className = moves<=3?'warn':'';
+  const g=STAGES[stage];
+  document.getElementById('goalName').textContent = stageScore.toLocaleString()+' / '+g.target.toLocaleString()+'점';
+  document.getElementById('goalSub').innerHTML = '<b style="color:var(--text)">'+g.name+'</b><br>'+g.tip;
+  document.getElementById('goalBar').style.width = Math.min(100, stageScore/g.target*100)+'%';
+  document.getElementById('btnUndo').disabled = !undoState || busy;
+  document.getElementById('unlocked').innerHTML = pool.map(id=>{
+    const sp=C[id];
+    return '<span style="font-size:12px;font-weight:700;color:var(--'+sp.p+');background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px 7px">'+sp.f+'</span>';
+  }).join('');
+  const info=document.getElementById('selInfo');
+  if(!anchor) info.innerHTML='칸을 누르면 기준점이 되고,<br>거기서부터 이어서 누를 수 있는<br>칸이 금색으로 빛납니다.';
+  else{
+    const id=grid[anchor[0]][anchor[1]];
+    info.innerHTML='<div style="font-size:15px;font-weight:800;color:var(--accent)">'+C[id].f+' '+C[id].n+'</div>'
+      + '<div style="margin-top:7px">' + (cands.length
+        ? '여기서 이어 만들 수 있는 지점 <b style="color:var(--gold)">'+cands.length+'</b>곳<br><span style="font-size:11px">무엇이 되는지는 만들어 봐야 압니다.</span>'
+        : '이 칸에서 이어지는 조합이 없습니다.') + '</div>';
+  }
+}
+function log(html, meta, win){
+  const l=document.getElementById('log');
+  const d=document.createElement('div');
+  d.className='lg'+(win?' win':'');
+  d.innerHTML='<div class="eq">'+html+'</div><div class="mt">'+meta+'</div>';
+  l.prepend(d); while(l.children.length>18) l.lastChild.remove();
+}
+function floatMsg(t){
+  const f=document.getElementById('float');
+  f.innerHTML=t; f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+}
+
+/* ============ 조작 ============ */
+function tap(r,c){
+  if(busy||!grid[r][c]) return;
+  if(anchor){
+    const cd=cands.find(x=>x.r===r&&x.c===c);
+    if(cd){ react(cd); return; }
+    if(anchor[0]===r&&anchor[1]===c){ anchor=null; cands=[]; render(); renderSide(); return; }
+  }
+  anchor=[r,c]; cands=candsFrom(r,c);
+  render(); renderSide();
+}
+async function react(cd){
+  busy=true; renderSide();
+  pushUndo();
+  const eq = cd.cells.map(([r,c])=>C[grid[r][c]].f).join(' + ')+' → '+C[cd.prod].f;
+  const cells = cd.cells.slice();
+  anchor=null; cands=[];
+
+  /* ① 반응 — 고른 칸들이 빛난다 */
+  render({cls:'react', cells:cells});
+  await wait(750);
+
+  /* ② 합성 — 재료가 사라지고 그 자리에 새 물질이 나타난다 */
+  cells.forEach(([r,c])=> clear(r,c));
+  put(cd.r, cd.c, cd.prod);
+  const prodUid = uids[cd.r][cd.c];
+  moves--;
+  const fresh = !found.has(cd.prod);
+  if(fresh){ found.add(cd.prod); try{ localStorage.setItem('chem-found3', JSON.stringify([...found])); }catch(e){} }
+  render(); renderSide();
+  await wait(800);
+
+  /* ③ 이동 — 만든 것이 기체면 맨 위까지 떠오르고, 액체·고체면 맨 아래까지 가라앉는다 */
+  const at = travel(prodUid) || [cd.r, cd.c];
+  render();
+  await wait(800);
+
+  /* ④ 증발 — 떠오른(가라앉은) 자리에서 같은 물질과 붙었으면 통째로 날아간다 */
+  const grp = clusterAt(at[0], at[1]);
+  if(grp.length >= 2){
+    const a = atoms(cd.prod);
+    const bonus = 1 + Math.max(0, a-6)/10;            // 원자가 많은 분자일수록 배율이 붙는다
+    const gain = Math.round(a * 40 * grp.length * grp.length * bonus);
+    score += gain; stageScore += gain;
+    if(score>best){ best=score; try{ localStorage.setItem('chem-best3',best); }catch(e){} }
+    render({cls:'bond', cells:grp});
+    floatMsg('<span style="font-size:22px">'+C[cd.prod].f+' ×'+grp.length+' 증발</span><br>+'+gain.toLocaleString()
+             + (bonus>1 ? '<br><span style="font-size:14px;color:var(--accent)">원자 '+a+'개 · 배율 ×'+bonus.toFixed(1)+'</span>' : ''));
+    log(eq, C[cd.prod].n+' '+grp.length+'개가 증발 · +'+gain.toLocaleString()+'점'
+        + (bonus>1?' (원자 '+a+'개 ×'+bonus.toFixed(1)+')':'') + (fresh?' · 새 물질':''), true);
+    await wait(900);
+    grp.forEach(([r,c])=> clear(r,c));
+    render(); renderSide();
+    await wait(600);
+  }else{
+    log(eq, fresh ? '새 물질 발견 · '+C[cd.prod].n : C[cd.prod].n+' 합성', fresh);
+    if(fresh) floatMsg('<span style="font-size:22px">'+C[cd.prod].f+'</span><br>새 물질');
+    await wait(450);
+  }
+
+  /* ⑤ 생성 — 이동이 모두 끝난 뒤, 남은 빈칸에 새 원소가 들어온다 */
+  fillHoles();
+  render(); renderSide();
+  await wait(650);
+
+  busy=false;
+  afterTurn();
+}
+function afterTurn(){
+  if(stageScore>=STAGES[stage].target){ stageClear(); return; }
+  if(moves<=0){ fail(); return; }
+  if(!anyMove()){
+    floatMsg('가능한 조합이 없어<br>판을 새로 깝니다');
+    newBoard(); render();
+    undoState = null;                          // 판이 바뀌면 되돌릴 수 없다
+  }
+  renderSide();
+}
+
+/* ============ 되돌리기 — 직전 한 수만 ============ */
+function pushUndo(){
+  undoState = {
+    grid: grid.map(r=>r.slice()), uids: uids.map(r=>r.slice()),
+    score: score, stageScore: stageScore, moves: moves
+  };
+}
+function undo(){
+  if(busy || !undoState) return;
+  grid = undoState.grid.map(r=>r.slice());
+  uids = undoState.uids.map(r=>r.slice());
+  score = undoState.score; stageScore = undoState.stageScore; moves = undoState.moves;
+  undoState = null;                            // 연속으로는 되돌릴 수 없다
+  anchor=null; cands=[];
+  render(); renderSide();
+  log('되돌리기', '직전 한 수를 취소했습니다');
+}
+
+/* ============ 흐름 ============ */
+function stageClear(){
+  if(stage>=STAGES.length-1){
+    modal('실험 완료','<div class="center"><h3>모든 스테이지 클리어</h3>'
+      +'<p>원소 낱개에서 시작해 마지막 목표 점수까지 도달했습니다.</p>'
+      +'<div class="big">'+score.toLocaleString()+'</div>'
+      +'<p style="margin-top:16px">발견한 물질 '+found.size+' / '+Object.keys(C).length+'종</p>'
+      +'<button onclick="init()">다시 시작</button></div>');
+    return;
+  }
+  stage++;
+  const g=STAGES[stage];
+
+  modal('스테이지 '+(stage+1),
+    '<div class="center"><h3>스테이지 클리어</h3><p>다음 실험대 · <b style="color:var(--text)">'+g.name+'</b></p>'
+    + g.pool.map(id=>'<span class="unlock"><span class="f">'+C[id].f+'</span> '+C[id].n+'</span>').join('')
+    + '<p style="margin-top:20px">목표 <b style="color:var(--gold)">'+g.target.toLocaleString()+'점</b> · 반응 '+g.mv+'회<br>'+g.tip+'</p>'
+    + '<button onclick="nextStage()">계속</button></div>');
+}
+function nextStage(){ closeModal(); startStage(); }
+function fail(){
+  modal('반응 횟수 소진',
+    '<div class="center"><h3>목표 점수에 닿지 못했습니다</h3>'
+    +'<p>'+stageScore.toLocaleString()+' / '+STAGES[stage].target.toLocaleString()+'점</p>'
+    +'<div class="big">'+score.toLocaleString()+'</div>'
+    +'<button onclick="retry()" style="margin-top:14px">이 스테이지 다시</button> '
+    +'<button onclick="init()">처음부터</button></div>');
+}
+function retry(){ closeModal(); score-=stageScore; startStage(); }
+
+/* ============ 모달 / 버튼 ============ */
+function modal(t,h){
+  document.getElementById('mTitle').textContent=t;
+  document.getElementById('mBody').innerHTML=h;
+  document.getElementById('modal').classList.add('on');
+}
+function closeModal(){ document.getElementById('modal').classList.remove('on'); }
+document.getElementById('mClose').onclick=closeModal;
+
+document.getElementById('btnCodex').onclick=()=>{
+  const ids=Object.keys(C);
+  modal('물질 도감 · '+found.size+' / '+ids.length,
+    '<div class="cards">'+ids.map(id=>{
+      const sp=C[id];
+      if(!found.has(id)&&!sp.el) return '<div class="card lock"><div class="t">???</div><div class="d">아직 합성하지 못한 물질</div></div>';
+      return '<div class="card" style="--phase:var(--'+sp.p+')"><div class="t">'+sp.f+' · '+sp.n+'</div><div class="d">'+sp.d+'</div></div>';
+    }).join('')+'</div>');
+};
+document.getElementById('btnHelp').onclick=()=>{
+  modal('도움말',
+   '<div style="line-height:1.95;font-size:13px">'
+   +'<p><b>1.</b> 6×6 판이 원소로 가득 차 있습니다. 아무 칸이나 누르면 그 칸이 <b style="color:var(--accent)">기준점</b>이 됩니다.</p>'
+   +'<p><b>2.</b> 기준점에서 가로·세로로 이어 눌렀을 때 원자 구성이 실제 물질과 맞아떨어지는 지점이 <b style="color:var(--gold)">금색으로 빛납니다.</b> 무엇이 만들어지는지는 알려주지 않습니다 — 화학식을 머릿속으로 세어 보세요.</p>'
+   +'<p><b>3.</b> 어디까지 누르느냐로 결과가 달라집니다. <kbd>H</kbd> <kbd>H</kbd> <kbd>O</kbd> 가 이어져 있으면 가운데까지는 <b>H₂</b>, 끝까지 누르면 <b>H₂O</b>입니다.</p>'
+   +'<p><b>4.</b> <b>만든 것만 움직입니다.</b> 합성한 것이 <span style="color:var(--gas)">기체</span>면 그 줄의 <b>맨 위까지 떠오르고</b>, <span style="color:var(--liquid)">액체</span>·<span style="color:var(--solid)">고체</span>면 <b>맨 아래까지 가라앉습니다.</b> 지나간 칸들만 한 칸씩 밀려나고, 이동이 끝난 뒤에 빈칸에 새 원소가 들어옵니다. 처음 깔린 원소들은 상과 상관없이 섞여 있습니다.</p>'
+   +'<p><b>5.</b> <b style="color:var(--gold)">점수는 합성 자체로는 들어오지 않습니다.</b> 만들어진 물질이 <b>같은 물질과 붙으면 그 덩어리가 통째로 증발하면서</b> 점수가 됩니다. 많이 모아서 한 번에 터뜨릴수록 점수가 급격히 커집니다.</p>'
+   +'<p style="color:var(--dim)">점수 = 원자 수 × 40 × (증발한 개수)² × 대형 분자 배율<br>'
+   +'H₂O 2개 = 480점 · 3개 = 1,080점 · 4개 = 1,920점<br>'
+   +'원자가 6개를 넘으면 배율이 붙습니다 — 포도당(24개)은 ×2.8</p>'
+   +'<p><b>7.</b> 스테이지가 오를수록 <b>반응 횟수가 늘고, 판에 분자가 미리 깔린 채로 시작</b>합니다. 깔린 분자에 원자를 이어 붙이면 혼자서는 못 만들 큰 분자에 닿습니다.</p>'
+   +'<p><b>6.</b> <b>되돌리기</b>는 직전 한 수만 취소합니다 (<kbd>Ctrl</kbd>+<kbd>Z</kbd>). 연속으로는 되돌릴 수 없습니다.</p>'
+   +'</div><div class="center"><button onclick="closeModal()">확인</button></div>');
+};
+document.getElementById('btnUndo').onclick = undo;
+document.getElementById('btnSpeed').onclick = function(){
+  SPEED = SPEED===1 ? 1.75 : (SPEED===1.75 ? 3 : 1);
+  this.textContent = '속도 ×'+(SPEED===1.75?'1.75':SPEED);
+};
+document.getElementById('btnRestart').onclick=()=>{ if(confirm('처음부터 다시 시작할까요?')) init(); };
+window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ anchor=null; cands=[]; render(); renderSide(); }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); undo(); }
+});
+
+init();
+</script>
+</body>
+</html>
